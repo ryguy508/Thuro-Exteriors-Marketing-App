@@ -4,12 +4,12 @@ import { errorToResult } from "@/lib/providerError";
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
-  const file = formData.get("file");
+  const files = formData.getAll("file").filter((f): f is File => f instanceof File);
   const kind = formData.get("kind") as EditKind;
   const instructions = (formData.get("instructions") as string) || "";
 
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "file is required" }, { status: 400 });
+  if (files.length === 0) {
+    return NextResponse.json({ error: "at least one file is required" }, { status: 400 });
   }
 
   if (!["edit-image", "animate-image", "edit-video"].includes(kind)) {
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await editMedia(kind, instructions, file);
+    const result = await editMedia(kind, instructions, files);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(errorToResult(err));

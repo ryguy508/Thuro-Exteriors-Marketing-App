@@ -105,10 +105,10 @@ async function pollJobsTask(taskId: string): Promise<string> {
  * imageUrl is provided), using Google's Nano Banana Pro (Gemini 3 Pro Image)
  * — kie.ai's flagship image model.
  */
-async function generateImage(prompt: string, imageUrl?: string): Promise<string> {
+async function generateImage(prompt: string, imageUrls?: string[]): Promise<string> {
   const taskId = await createJobsTask("nano-banana-pro", {
     prompt,
-    ...(imageUrl ? { image_input: [imageUrl] } : {}),
+    ...(imageUrls?.length ? { image_input: imageUrls } : {}),
     aspect_ratio: "1:1",
     resolution: "2K",
     output_format: "png",
@@ -118,15 +118,15 @@ async function generateImage(prompt: string, imageUrl?: string): Promise<string>
 
 type VeoCreateResponse = { code: number; msg: string; data?: { taskId: string } };
 
-async function createVeoTask(prompt: string, imageUrl?: string): Promise<string> {
+async function createVeoTask(prompt: string, imageUrls?: string[]): Promise<string> {
   const res = await fetch(`${VEO_BASE}/generate`, {
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
       prompt,
       model: "veo3",
-      generationType: imageUrl ? "REFERENCE_2_VIDEO" : "TEXT_2_VIDEO",
-      ...(imageUrl ? { imageUrls: [imageUrl] } : {}),
+      generationType: imageUrls?.length ? "REFERENCE_2_VIDEO" : "TEXT_2_VIDEO",
+      ...(imageUrls?.length ? { imageUrls } : {}),
       aspect_ratio: "16:9",
       resolution: "1080p",
     }),
@@ -183,12 +183,12 @@ async function pollVeoTask(taskId: string): Promise<string> {
 }
 
 /**
- * Generate a new video from a text prompt, or animate an existing image
- * (when imageUrl is provided), using Google's Veo 3 — kie.ai's flagship
+ * Generate a new video from a text prompt, or animate existing image(s)
+ * (when imageUrls is provided), using Google's Veo 3 — kie.ai's flagship
  * video model.
  */
-async function generateVideo(prompt: string, imageUrl?: string): Promise<string> {
-  const taskId = await createVeoTask(prompt, imageUrl);
+async function generateVideo(prompt: string, imageUrls?: string[]): Promise<string> {
+  const taskId = await createVeoTask(prompt, imageUrls);
   return pollVeoTask(taskId);
 }
 
@@ -216,29 +216,32 @@ export async function generateMedia(
 }
 
 /**
- * Upload -> edited still, animated video, or edited video.
+ * Upload -> edited still, animated video, or edited video. Accepts multiple
+ * reference photos for edit-image and animate-image, since kie.ai's
+ * underlying models (Nano Banana Pro's image_input, Veo3's REFERENCE_2_VIDEO
+ * imageUrls) both take an array of reference images.
  */
 export async function editMedia(
   kind: EditKind,
   instructions: string,
-  file: File
+  files: File[]
 ): Promise<EditResult> {
   if (!hasApiKey()) {
     return {
       status: "stub",
-      message: `Stub response — no KIE_API_KEY configured yet. Would process the photo (${kind}) with instructions: "${instructions}"`,
+      message: `Stub response — no KIE_API_KEY configured yet. Would process ${files.length} photo(s) (${kind}) with instructions: "${instructions}"`,
     };
   }
 
   if (kind === "edit-image") {
-    const imageUrl = await uploadScratchFile(file);
-    const outputUrl = await generateImage(instructions, imageUrl);
+    const imageUrls = await Promise.all(files.map(uploadScratchFile));
+    const outputUrl = await generateImage(instructions, imageUrls);
     return { status: "ok", message: "Photo edited.", outputUrl };
   }
 
   if (kind === "animate-image") {
-    const imageUrl = await uploadScratchFile(file);
-    const outputUrl = await generateVideo(instructions, imageUrl);
+    const imageUrls = await Promise.all(files.map(uploadScratchFile));
+    const outputUrl = await generateVideo(instructions, imageUrls);
     return { status: "ok", message: "Video generated from photo.", outputUrl };
   }
 

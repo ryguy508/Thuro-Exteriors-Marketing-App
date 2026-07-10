@@ -22,8 +22,11 @@ export default function MediaPanel() {
 
   // upload-and-edit state
   const [editKind, setEditKind] = useState<EditKind>("edit-image");
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [instructions, setInstructions] = useState("");
+
+  const MAX_FILES = 5;
+  const allowMultiple = editKind !== "edit-video";
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MediaResult | null>(null);
@@ -45,17 +48,29 @@ export default function MediaPanel() {
 
   async function handleEdit(e: React.FormEvent) {
     e.preventDefault();
-    if (!file) return;
+    if (files.length === 0) return;
     setLoading(true);
     setResult(null);
     setOutputKind(editKind === "edit-image" ? "image" : "video");
     const formData = new FormData();
-    formData.append("file", file);
+    for (const f of files) formData.append("file", f);
     formData.append("kind", editKind);
     formData.append("instructions", instructions);
     const res = await fetch("/api/edit", { method: "POST", body: formData });
     setResult(await res.json());
     setLoading(false);
+  }
+
+  function addFiles(newFiles: FileList | null) {
+    if (!newFiles) return;
+    setFiles((prev) => {
+      const combined = allowMultiple ? [...prev, ...Array.from(newFiles)] : Array.from(newFiles).slice(0, 1);
+      return combined.slice(0, MAX_FILES);
+    });
+  }
+
+  function removeFile(index: number) {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
   return (
@@ -144,7 +159,7 @@ export default function MediaPanel() {
                   checked={editKind === opt.value}
                   onChange={() => {
                     setEditKind(opt.value);
-                    setFile(null);
+                    setFiles([]);
                   }}
                 />
                 {opt.label}
@@ -155,10 +170,37 @@ export default function MediaPanel() {
           <input
             type="file"
             accept={editKind === "edit-video" ? "video/*" : "image/*"}
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            multiple={allowMultiple}
+            onChange={(e) => addFiles(e.target.files)}
             className="input"
-            required
+            required={files.length === 0}
           />
+          {allowMultiple && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Up to {MAX_FILES} reference photos — select several at once, or add more with another click.
+            </p>
+          )}
+
+          {files.length > 0 && (
+            <ul className="flex flex-wrap gap-2">
+              {files.map((f, i) => (
+                <li
+                  key={`${f.name}-${i}`}
+                  className="flex items-center gap-2 rounded-md border border-zinc-200 px-2 py-1 text-xs text-zinc-700 dark:border-zinc-700 dark:text-zinc-300"
+                >
+                  <span className="max-w-40 truncate">{f.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeFile(i)}
+                    className="text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-100"
+                    aria-label={`Remove ${f.name}`}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
 
           <textarea
             className="input min-h-20"
@@ -170,7 +212,7 @@ export default function MediaPanel() {
 
           <button
             type="submit"
-            disabled={loading || !file}
+            disabled={loading || files.length === 0}
             className="btn-primary self-start"
           >
             {loading ? "Processing..." : "Run edit"}
