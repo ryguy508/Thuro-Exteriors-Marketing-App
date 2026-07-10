@@ -128,7 +128,7 @@ async function createVeoTask(prompt: string, imageUrls?: string[]): Promise<stri
       generationType: imageUrls?.length ? "REFERENCE_2_VIDEO" : "TEXT_2_VIDEO",
       ...(imageUrls?.length ? { imageUrls } : {}),
       aspect_ratio: "16:9",
-      resolution: "1080p",
+      resolution: "4k",
     }),
   });
 
