@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateMedia, type GenerateMode } from "@/lib/higgsfield";
+import { generateMedia, type GenerateMode } from "@/lib/kie";
 import { errorToResult } from "@/lib/providerError";
 
 export async function POST(request: NextRequest) {

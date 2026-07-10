@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { editMedia, type EditKind } from "@/lib/higgsfield";
+import { editMedia, type EditKind } from "@/lib/kie";
 import { errorToResult } from "@/lib/providerError";
 
 export async function POST(request: NextRequest) {

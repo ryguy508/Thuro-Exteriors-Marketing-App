@@ -1,7 +1,7 @@
 import db from "./db";
 
 /**
- * Uploads a file to Supabase Storage so external APIs (Higgsfield, kie.ai)
+ * Uploads a file to Supabase Storage so external APIs (kie.ai)
  * that require a public URL, not raw bytes, can fetch it. Reuses the
  * job-photos bucket under a "scratch/" prefix for anything not attached to
  * a specific job.
