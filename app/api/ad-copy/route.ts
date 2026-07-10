@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAdCopy, type AdCopyRequest } from "@/lib/claude";
+import { errorToResult } from "@/lib/providerError";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json()) as AdCopyRequest;
@@ -11,6 +12,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await generateAdCopy(body);
-  return NextResponse.json(result);
+  try {
+    const result = await generateAdCopy(body);
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json(errorToResult(err));
+  }
 }

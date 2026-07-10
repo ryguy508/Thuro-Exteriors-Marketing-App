@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { classifyProviderError } from "./providerError";
 
 export type AdCopyRequest = {
   serviceType: string;
@@ -54,19 +55,23 @@ export async function generateAdCopy(
 
   const client = new Anthropic();
 
-  const response = await client.messages.create({
-    model: "claude-opus-4-8",
-    max_tokens: 1024,
-    output_config: { effort: "low" },
-    messages: [{ role: "user", content: buildPrompt(req) }],
-  });
+  try {
+    const response = await client.messages.create({
+      model: "claude-opus-4-8",
+      max_tokens: 1024,
+      output_config: { effort: "low" },
+      messages: [{ role: "user", content: buildPrompt(req) }],
+    });
 
-  const textBlock = response.content.find((b) => b.type === "text");
-  const copy = textBlock && textBlock.type === "text" ? textBlock.text : "";
+    const textBlock = response.content.find((b) => b.type === "text");
+    const copy = textBlock && textBlock.type === "text" ? textBlock.text : "";
 
-  return {
-    status: "ok",
-    message: copy,
-    copy,
-  };
+    return {
+      status: "ok",
+      message: copy,
+      copy,
+    };
+  } catch (err) {
+    throw classifyProviderError("Anthropic (Claude)", err);
+  }
 }

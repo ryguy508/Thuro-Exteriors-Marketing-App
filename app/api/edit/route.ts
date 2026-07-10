@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { editMedia, type EditKind } from "@/lib/higgsfield";
+import { errorToResult } from "@/lib/providerError";
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -15,6 +16,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "invalid kind" }, { status: 400 });
   }
 
-  const result = await editMedia(kind, instructions, file);
-  return NextResponse.json(result);
+  try {
+    const result = await editMedia(kind, instructions, file);
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json(errorToResult(err));
+  }
 }

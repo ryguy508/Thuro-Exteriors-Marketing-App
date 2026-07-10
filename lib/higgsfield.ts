@@ -1,12 +1,6 @@
-import {
-  createHiggsfieldClient,
-  SoulQuality,
-  SoulSize,
-  BatchSize,
-  DoPModel,
-} from "@higgsfield/client/v2";
 import { uploadScratchFile } from "./storage";
 import { editImage as kieEditImage, hasKieApiKey } from "./kie";
+import { classifyProviderError } from "./providerError";
 
 export type GenerateMode = "image" | "video";
 
@@ -24,26 +18,93 @@ export type EditResult = {
   outputUrl?: string;
 };
 
+const BASE_URL = "https://platform.higgsfield.ai";
+const POLL_INTERVAL_MS = 3000;
+const MAX_POLLS = 60; // ~3 minutes
+
 function hasApiKey(): boolean {
   return Boolean(process.env.HIGGSFIELD_CREDENTIALS);
 }
 
-function getClient() {
-  return createHiggsfieldClient({
-    credentials: process.env.HIGGSFIELD_CREDENTIALS!,
+type V2Response = {
+  status: "queued" | "in_progress" | "completed" | "failed" | "nsfw";
+  request_id: string;
+  images?: { url: string }[];
+  video?: { url: string };
+};
+
+/**
+ * Calls a Higgsfield v2 endpoint directly and polls until completion.
+ *
+ * Bypasses the @higgsfield/client SDK's subscribe() method — as of the
+ * installed version, it sends the input fields flat, but the live API
+ * requires them wrapped in a "params" object (confirmed against the real
+ * API: a flat body returns "body.params: Field required").
+ */
+async function subscribeRaw(
+  endpoint: string,
+  params: Record<string, unknown>
+): Promise<V2Response> {
+  const creds = process.env.HIGGSFIELD_CREDENTIALS!;
+
+  const createRes = await fetch(`${BASE_URL}${endpoint}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Key ${creds}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ params }),
   });
+
+  const created = await createRes.json();
+  if (!createRes.ok || created.detail) {
+    throw classifyProviderError("Higgsfield", {
+      status: createRes.status,
+      message:
+        typeof created.detail === "string"
+          ? created.detail
+          : JSON.stringify(created.detail ?? created),
+    });
+  }
+
+  let current: V2Response = created;
+  for (let i = 0; i < MAX_POLLS; i++) {
+    if (
+      current.status === "completed" ||
+      current.status === "failed" ||
+      current.status === "nsfw"
+    ) {
+      return current;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+
+    const statusRes = await fetch(
+      `${BASE_URL}/requests/${current.request_id}/status`,
+      { headers: { Authorization: `Key ${creds}` } }
+    );
+    const statusBody = await statusRes.json();
+    if (!statusRes.ok || statusBody.detail) {
+      throw classifyProviderError("Higgsfield", {
+        status: statusRes.status,
+        message:
+          typeof statusBody.detail === "string"
+            ? statusBody.detail
+            : JSON.stringify(statusBody.detail ?? statusBody),
+      });
+    }
+    current = statusBody;
+  }
+
+  throw new Error("Higgsfield request timed out waiting for a result");
 }
 
 async function generateImage(prompt: string): Promise<string> {
-  const client = getClient();
-  const response = await client.subscribe("/v1/text2image/soul", {
-    input: {
-      prompt,
-      width_and_height: SoulSize.SQUARE_1536x1536,
-      quality: SoulQuality.HD,
-      batch_size: BatchSize.SINGLE,
-    },
-    withPolling: true,
+  const response = await subscribeRaw("/v1/text2image/soul", {
+    prompt,
+    width_and_height: "1536x1536",
+    quality: "1080p",
+    batch_size: 1,
   });
 
   const url = response.images?.[0]?.url;
@@ -57,14 +118,10 @@ async function animateImageUrl(
   imageUrl: string,
   prompt: string
 ): Promise<string> {
-  const client = getClient();
-  const response = await client.subscribe("/v1/image2video/dop", {
-    input: {
-      model: DoPModel.TURBO,
-      prompt,
-      input_images: [{ type: "image_url", image_url: imageUrl }],
-    },
-    withPolling: true,
+  const response = await subscribeRaw("/v1/image2video/dop", {
+    model: "dop-turbo",
+    prompt,
+    input_images: [{ type: "image_url", image_url: imageUrl }],
   });
 
   const url = response.video?.url;

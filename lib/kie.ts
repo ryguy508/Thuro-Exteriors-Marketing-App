@@ -1,3 +1,5 @@
+import { classifyProviderError } from "./providerError";
+
 const BASE_URL = "https://api.kie.ai/api/v1/flux/kontext";
 const POLL_INTERVAL_MS = 3000;
 const MAX_POLLS = 40; // ~2 minutes
@@ -49,7 +51,10 @@ export async function editImage(
 
   const created = (await createRes.json()) as CreateTaskResponse;
   if (!createRes.ok || created.code !== 200 || !created.data?.taskId) {
-    throw new Error(`kie.ai task creation failed: ${created.msg}`);
+    throw classifyProviderError("kie.ai", {
+      status: createRes.status !== 200 ? createRes.status : created.code,
+      message: created.msg,
+    });
   }
 
   const taskId = created.data.taskId;
@@ -70,9 +75,10 @@ export async function editImage(
       return url;
     }
     if (flag === 2 || flag === 3) {
-      throw new Error(
-        `kie.ai image edit failed: ${status.data?.errorMessage ?? "unknown error"}`
-      );
+      throw classifyProviderError("kie.ai", {
+        status: statusRes.status !== 200 ? statusRes.status : undefined,
+        message: status.data?.errorMessage ?? "unknown error",
+      });
     }
     // flag === 0 (or undefined) -> still generating, keep polling
   }

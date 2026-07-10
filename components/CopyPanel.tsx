@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { resultLabel, resultVariant } from "./resultStatus";
 
 const SERVICE_TYPES = [
   { value: "pressure_washing", label: "Pressure Washing" },
@@ -83,10 +84,8 @@ export default function CopyPanel({
       </form>
 
       {result && (
-        <div className="result-box">
-          <p className="result-label">
-            {result.status === "stub" ? "Stub result (no API key yet)" : "Result"}
-          </p>
+        <div className="result-box" data-variant={resultVariant(result.status)}>
+          <p className="result-label">{resultLabel(result.status)}</p>
           <p className="mt-1 whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">
             {result.message}
           </p>

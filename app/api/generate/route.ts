@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateMedia, type GenerateMode } from "@/lib/higgsfield";
+import { errorToResult } from "@/lib/providerError";
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
@@ -13,6 +14,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const result = await generateMedia(mode, prompt);
-  return NextResponse.json(result);
+  try {
+    const result = await generateMedia(mode, prompt);
+    return NextResponse.json(result);
+  } catch (err) {
+    return NextResponse.json(errorToResult(err));
+  }
 }

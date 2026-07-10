@@ -140,3 +140,12 @@ a.card:hover {
   letter-spacing: 0.04em;
   color: rgb(113 113 122);
 }
+
+.result-box[data-variant="warning"] {
+  border-color: #b45309;
+  background: rgb(180 83 9 / 0.1);
+}
+
+.result-box[data-variant="warning"] .result-label {
+  color: #f59e0b;
+}
