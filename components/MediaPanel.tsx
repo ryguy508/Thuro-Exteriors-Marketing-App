@@ -9,6 +9,7 @@ type EditKind = "edit-image" | "animate-image" | "edit-video";
 type MediaResult = {
   status: string;
   message: string;
+  outputUrl?: string;
 };
 
 export default function MediaPanel() {
@@ -25,11 +26,13 @@ export default function MediaPanel() {
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<MediaResult | null>(null);
+  const [outputKind, setOutputKind] = useState<Mode>("image");
 
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setResult(null);
+    setOutputKind(mode);
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -44,6 +47,7 @@ export default function MediaPanel() {
     if (!file) return;
     setLoading(true);
     setResult(null);
+    setOutputKind(editKind === "edit-image" ? "image" : "video");
     const formData = new FormData();
     formData.append("file", file);
     formData.append("kind", editKind);
@@ -176,9 +180,27 @@ export default function MediaPanel() {
       {result && (
         <div className="result-box">
           <p className="result-label">
-            {result.status === "stub" ? "Stub result (no API key yet)" : "Result"}
+            {result.status === "stub"
+              ? "Stub result (no API key yet)"
+              : result.status === "unsupported"
+              ? "Not available yet"
+              : "Result"}
           </p>
           <p className="mt-1 text-zinc-800 dark:text-zinc-200">{result.message}</p>
+          {result.outputUrl &&
+            (outputKind === "video" ? (
+              <video
+                src={result.outputUrl}
+                controls
+                className="mt-3 max-h-96 w-full rounded-md"
+              />
+            ) : (
+              <img
+                src={result.outputUrl}
+                alt="Generated result"
+                className="mt-3 max-h-96 w-full rounded-md object-contain"
+              />
+            ))}
         </div>
       )}
     </div>
