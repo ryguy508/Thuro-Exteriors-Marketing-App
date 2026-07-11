@@ -1,5 +1,8 @@
 import { uploadScratchFile } from "./storage";
 import { classifyProviderError, type ProviderErrorStatus } from "./providerError";
+import { withDirectives, type ContentType } from "./promptDirectives";
+
+export type { ContentType };
 
 export type MediaKind = "image" | "video";
 export type GenerateMode = MediaKind;
@@ -101,9 +104,13 @@ async function checkImageTask(taskId: string): Promise<CheckResult> {
  * Google's Nano Banana Pro (Gemini 3 Pro Image) — kie.ai's flagship image
  * model — and returns the taskId to poll.
  */
-async function startImage(prompt: string, imageUrls?: string[]): Promise<string> {
+async function startImage(
+  prompt: string,
+  contentType: ContentType,
+  imageUrls?: string[]
+): Promise<string> {
   return createJobsTask("nano-banana-pro", {
-    prompt,
+    prompt: withDirectives(prompt, contentType),
     ...(imageUrls?.length ? { image_input: imageUrls } : {}),
     aspect_ratio: "1:1",
     resolution: "2K",
@@ -113,7 +120,11 @@ async function startImage(prompt: string, imageUrls?: string[]): Promise<string>
 
 type VeoCreateResponse = { code: number; msg: string; data?: { taskId: string } };
 
-async function createVeoTask(prompt: string, imageUrls?: string[]): Promise<string> {
+async function createVeoTask(
+  prompt: string,
+  contentType: ContentType,
+  imageUrls?: string[]
+): Promise<string> {
   // kie.ai only allows image-referenced generation (REFERENCE_2_VIDEO) on the
   // Fast/Lite Veo3 tiers — the full "veo3" model rejects it with "Reference
   // to video only supports the Veo Fast model and Veo Lite model." Pure
@@ -124,7 +135,7 @@ async function createVeoTask(prompt: string, imageUrls?: string[]): Promise<stri
     method: "POST",
     headers: authHeaders(),
     body: JSON.stringify({
-      prompt,
+      prompt: withDirectives(prompt, contentType),
       model: usingReference ? "veo3_fast" : "veo3",
       generationType: usingReference ? "REFERENCE_2_VIDEO" : "TEXT_2_VIDEO",
       ...(usingReference ? { imageUrls } : {}),
@@ -184,8 +195,12 @@ async function checkVideoTask(taskId: string): Promise<CheckResult> {
  * existing image(s) (when imageUrls is given), using Google's Veo 3 — kie.ai's
  * flagship video model — and returns the taskId to poll.
  */
-async function startVideo(prompt: string, imageUrls?: string[]): Promise<string> {
-  return createVeoTask(prompt, imageUrls);
+async function startVideo(
+  prompt: string,
+  contentType: ContentType,
+  imageUrls?: string[]
+): Promise<string> {
+  return createVeoTask(prompt, contentType, imageUrls);
 }
 
 /**
@@ -207,7 +222,8 @@ export async function checkTask(taskId: string, mediaKind: MediaKind): Promise<C
  */
 export async function startGenerate(
   mode: MediaKind,
-  prompt: string
+  prompt: string,
+  contentType: ContentType = "social_ad"
 ): Promise<StartResult> {
   if (!hasApiKey()) {
     return {
@@ -216,7 +232,10 @@ export async function startGenerate(
     };
   }
 
-  const taskId = mode === "image" ? await startImage(prompt) : await startVideo(prompt);
+  const taskId =
+    mode === "image"
+      ? await startImage(prompt, contentType)
+      : await startVideo(prompt, contentType);
   return { status: "pending", taskId, mediaKind: mode };
 }
 
@@ -229,7 +248,8 @@ export async function startGenerate(
 export async function startEdit(
   kind: EditKind,
   instructions: string,
-  files: File[]
+  files: File[],
+  contentType: ContentType = "social_ad"
 ): Promise<StartResult> {
   if (!hasApiKey()) {
     return {
@@ -240,13 +260,13 @@ export async function startEdit(
 
   if (kind === "edit-image") {
     const imageUrls = await Promise.all(files.map(uploadScratchFile));
-    const taskId = await startImage(instructions, imageUrls);
+    const taskId = await startImage(instructions, contentType, imageUrls);
     return { status: "pending", taskId, mediaKind: "image" };
   }
 
   if (kind === "animate-image") {
     const imageUrls = await Promise.all(files.map(uploadScratchFile));
-    const taskId = await startVideo(instructions, imageUrls);
+    const taskId = await startVideo(instructions, contentType, imageUrls);
     return { status: "pending", taskId, mediaKind: "video" };
   }
 

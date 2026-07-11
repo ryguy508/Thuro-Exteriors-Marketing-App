@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { startGenerate, type MediaKind } from "@/lib/kie";
 import { errorToResult } from "@/lib/providerError";
+import type { ContentType } from "@/lib/promptDirectives";
 
 export const maxDuration = 60;
 
@@ -8,6 +9,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json();
   const mode = body.mode as MediaKind;
   const prompt = body.prompt as string;
+  const contentType = (body.contentType as ContentType) || "social_ad";
 
   if (!prompt || (mode !== "image" && mode !== "video")) {
     return NextResponse.json(
@@ -17,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await startGenerate(mode, prompt);
+    const result = await startGenerate(mode, prompt, contentType);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(errorToResult(err));

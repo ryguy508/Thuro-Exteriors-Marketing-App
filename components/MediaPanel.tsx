@@ -6,6 +6,7 @@ import { resultLabel, resultVariant } from "./resultStatus";
 type Source = "generate" | "upload";
 type Mode = "image" | "video";
 type EditKind = "edit-image" | "animate-image" | "edit-video";
+type ContentType = "before_after" | "social_ad";
 
 type MediaResult = {
   status: string;
@@ -19,11 +20,13 @@ export default function MediaPanel() {
   // generate-new state
   const [mode, setMode] = useState<Mode>("image");
   const [prompt, setPrompt] = useState("");
+  const [contentType, setContentType] = useState<ContentType>("social_ad");
 
   // upload-and-edit state
   const [editKind, setEditKind] = useState<EditKind>("edit-image");
   const [files, setFiles] = useState<File[]>([]);
   const [instructions, setInstructions] = useState("");
+  const [editContentType, setEditContentType] = useState<ContentType>("social_ad");
 
   const MAX_FILES = 5;
   const allowMultiple = editKind !== "edit-video";
@@ -67,7 +70,7 @@ export default function MediaPanel() {
     const res = await fetch("/api/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, prompt }),
+      body: JSON.stringify({ mode, prompt, contentType }),
     });
     const data = await res.json();
     if (data.status === "pending" && data.taskId) {
@@ -90,6 +93,7 @@ export default function MediaPanel() {
     for (const f of files) formData.append("file", f);
     formData.append("kind", editKind);
     formData.append("instructions", instructions);
+    formData.append("contentType", editContentType);
     const res = await fetch("/api/edit", { method: "POST", body: formData });
     const data = await res.json();
     if (data.status === "pending" && data.taskId) {
@@ -157,6 +161,25 @@ export default function MediaPanel() {
             ))}
           </div>
 
+          <div className="flex gap-2">
+            {(
+              [
+                { value: "social_ad", label: "Social ad" },
+                { value: "before_after", label: "Before/after" },
+              ] as { value: ContentType; label: string }[]
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                data-active={contentType === opt.value}
+                onClick={() => setContentType(opt.value)}
+                className="btn-toggle"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <textarea
             className="input min-h-24"
             value={prompt}
@@ -179,6 +202,25 @@ export default function MediaPanel() {
         </form>
       ) : (
         <form onSubmit={handleEdit} className="mt-4 flex flex-col gap-3">
+          <div className="flex gap-2">
+            {(
+              [
+                { value: "social_ad", label: "Social ad" },
+                { value: "before_after", label: "Before/after" },
+              ] as { value: ContentType; label: string }[]
+            ).map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                data-active={editContentType === opt.value}
+                onClick={() => setEditContentType(opt.value)}
+                className="btn-toggle"
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
           <div className="flex flex-col gap-1">
             {(
               [
