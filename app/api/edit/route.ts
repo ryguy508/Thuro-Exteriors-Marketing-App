@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { editMedia, type EditKind } from "@/lib/kie";
+import { startEdit, type EditKind } from "@/lib/kie";
 import { errorToResult } from "@/lib/providerError";
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
@@ -9,7 +11,7 @@ export async function POST(request: NextRequest) {
   const instructions = (formData.get("instructions") as string) || "";
 
   if (files.length === 0) {
-    return NextResponse.json({ error: "at least one file is required" }, { status: 400 });
+    return NextResponse.json({ error: "file is required" }, { status: 400 });
   }
 
   if (!["edit-image", "animate-image", "edit-video"].includes(kind)) {
@@ -17,7 +19,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await editMedia(kind, instructions, files);
+    const result = await startEdit(kind, instructions, files);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(errorToResult(err));

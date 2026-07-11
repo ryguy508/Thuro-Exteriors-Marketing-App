@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { generateMedia, type GenerateMode } from "@/lib/kie";
+import { startGenerate, type MediaKind } from "@/lib/kie";
 import { errorToResult } from "@/lib/providerError";
+
+export const maxDuration = 60;
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const mode = body.mode as GenerateMode;
+  const mode = body.mode as MediaKind;
   const prompt = body.prompt as string;
 
   if (!prompt || (mode !== "image" && mode !== "video")) {
@@ -15,7 +17,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await generateMedia(mode, prompt);
+    const result = await startGenerate(mode, prompt);
     return NextResponse.json(result);
   } catch (err) {
     return NextResponse.json(errorToResult(err));

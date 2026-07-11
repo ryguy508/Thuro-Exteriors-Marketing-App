@@ -32,6 +32,33 @@ export default function MediaPanel() {
   const [result, setResult] = useState<MediaResult | null>(null);
   const [outputKind, setOutputKind] = useState<Mode>("image");
 
+  const POLL_INTERVAL_MS = 4000;
+  const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes — Veo3 video can be slow
+
+  async function pollUntilDone(taskId: string, mediaKind: Mode): Promise<MediaResult> {
+    const deadline = Date.now() + POLL_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+      const res = await fetch(
+        `/api/media-status?taskId=${encodeURIComponent(taskId)}&mediaKind=${mediaKind}`
+      );
+      const data = await res.json();
+      if (data.status !== "pending") return data;
+      setResult({ status: "pending", message: pendingMessage(mediaKind) });
+    }
+    return {
+      status: "provider_error",
+      message:
+        "Still generating after 10 minutes — kie.ai may finish it in the background. Check your kie.ai dashboard, or try again.",
+    };
+  }
+
+  function pendingMessage(mediaKind: Mode): string {
+    return mediaKind === "video"
+      ? "Generating video — this can take a few minutes..."
+      : "Generating image...";
+  }
+
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -42,7 +69,13 @@ export default function MediaPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mode, prompt }),
     });
-    setResult(await res.json());
+    const data = await res.json();
+    if (data.status === "pending" && data.taskId) {
+      setResult({ status: "pending", message: pendingMessage(data.mediaKind ?? mode) });
+      setResult(await pollUntilDone(data.taskId, data.mediaKind ?? mode));
+    } else {
+      setResult(data);
+    }
     setLoading(false);
   }
 
@@ -51,13 +84,22 @@ export default function MediaPanel() {
     if (files.length === 0) return;
     setLoading(true);
     setResult(null);
-    setOutputKind(editKind === "edit-image" ? "image" : "video");
+    const kindGuess: Mode = editKind === "edit-image" ? "image" : "video";
+    setOutputKind(kindGuess);
     const formData = new FormData();
     for (const f of files) formData.append("file", f);
     formData.append("kind", editKind);
     formData.append("instructions", instructions);
     const res = await fetch("/api/edit", { method: "POST", body: formData });
-    setResult(await res.json());
+    const data = await res.json();
+    if (data.status === "pending" && data.taskId) {
+      const mediaKind: Mode = data.mediaKind ?? kindGuess;
+      setOutputKind(mediaKind);
+      setResult({ status: "pending", message: pendingMessage(mediaKind) });
+      setResult(await pollUntilDone(data.taskId, mediaKind));
+    } else {
+      setResult(data);
+    }
     setLoading(false);
   }
 

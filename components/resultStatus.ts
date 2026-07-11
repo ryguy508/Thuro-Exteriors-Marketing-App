@@ -1,5 +1,7 @@
 export function resultLabel(status: string): string {
   switch (status) {
+    case "pending":
+      return "Generating...";
     case "stub":
       return "Stub result (no API key yet)";
     case "unsupported":
