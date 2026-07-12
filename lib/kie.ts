@@ -37,8 +37,8 @@ type CreateTaskResponse = { code: number; msg: string; data?: { taskId: string }
 
 /**
  * Creates a task on kie.ai's unified Market jobs API (used for image models
- * like Google's Nano Banana Pro) and returns the taskId. This only starts
- * the job — it does not wait for it to finish, since Nano Banana Pro and
+ * like OpenAI's GPT Image 2) and returns the taskId. This only starts
+ * the job — it does not wait for it to finish, since GPT Image 2 and
  * especially Veo3 can take well past any serverless function's execution
  * limit. Callers must poll checkImageTask separately.
  */
@@ -101,20 +101,20 @@ async function checkImageTask(taskId: string): Promise<CheckResult> {
 
 /**
  * Starts a new image generation (or edit, when imageUrls is given) using
- * Google's Nano Banana Pro (Gemini 3 Pro Image) — kie.ai's flagship image
- * model — and returns the taskId to poll.
+ * OpenAI's GPT Image 2 — kie.ai's newest and most accurate image model —
+ * and returns the taskId to poll.
  */
 async function startImage(
   prompt: string,
   contentType: ContentType,
   imageUrls?: string[]
 ): Promise<string> {
-  return createJobsTask("nano-banana-pro", {
+  const usingReference = Boolean(imageUrls?.length);
+  return createJobsTask(usingReference ? "gpt-image-2-image-to-image" : "gpt-image-2-text-to-image", {
     prompt: withDirectives(prompt, contentType),
-    ...(imageUrls?.length ? { image_input: imageUrls } : {}),
+    ...(usingReference ? { input_urls: imageUrls } : {}),
     aspect_ratio: "1:1",
     resolution: "2K",
-    output_format: "png",
   });
 }
 
@@ -242,7 +242,7 @@ export async function startGenerate(
 /**
  * Upload -> starts an edited still, animated video, or (unsupported) edited
  * video. Accepts multiple reference photos for edit-image and animate-image,
- * since kie.ai's underlying models (Nano Banana Pro's image_input, Veo3's
+ * since the underlying models (GPT Image 2's input_urls, Veo3's
  * REFERENCE_2_VIDEO imageUrls) both take an array of reference images.
  */
 export async function startEdit(
