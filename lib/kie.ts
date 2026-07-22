@@ -1,4 +1,3 @@
-import { uploadScratchFile } from "./storage";
 import { classifyProviderError, type ProviderErrorStatus } from "./providerError";
 import { withDirectives, type ContentType } from "./promptDirectives";
 
@@ -240,32 +239,33 @@ export async function startGenerate(
 }
 
 /**
- * Upload -> starts an edited still, animated video, or (unsupported) edited
- * video. Accepts multiple reference photos for edit-image and animate-image,
- * since the underlying models (GPT Image 2's input_urls, Veo3's
- * REFERENCE_2_VIDEO imageUrls) both take an array of reference images.
+ * Reference photos -> starts an edited still, animated video, or
+ * (unsupported) edited video. Takes public image URLs rather than raw files
+ * — the browser uploads reference photos directly to Supabase Storage
+ * (lib/storageClient.ts) before calling this, so multi-MB photos never pass
+ * through a Vercel function's request body size limit. Accepts multiple URLs
+ * for edit-image and animate-image, since the underlying models (GPT Image
+ * 2's input_urls, Veo3's REFERENCE_2_VIDEO imageUrls) both take an array.
  */
 export async function startEdit(
   kind: EditKind,
   instructions: string,
-  files: File[],
+  imageUrls: string[],
   contentType: ContentType = "social_ad"
 ): Promise<StartResult> {
   if (!hasApiKey()) {
     return {
       status: "stub",
-      message: `Stub response — no KIE_API_KEY configured yet. Would process ${files.length} photo(s) (${kind}) with instructions: "${instructions}"`,
+      message: `Stub response — no KIE_API_KEY configured yet. Would process ${imageUrls.length} photo(s) (${kind}) with instructions: "${instructions}"`,
     };
   }
 
   if (kind === "edit-image") {
-    const imageUrls = await Promise.all(files.map(uploadScratchFile));
     const taskId = await startImage(instructions, contentType, imageUrls);
     return { status: "pending", taskId, mediaKind: "image" };
   }
 
   if (kind === "animate-image") {
-    const imageUrls = await Promise.all(files.map(uploadScratchFile));
     const taskId = await startVideo(instructions, contentType, imageUrls);
     return { status: "pending", taskId, mediaKind: "video" };
   }

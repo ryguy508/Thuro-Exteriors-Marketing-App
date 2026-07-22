@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { resultLabel, resultVariant } from "./resultStatus";
+import { uploadScratchFileFromBrowser } from "@/lib/storageClient";
 
 type Source = "generate" | "upload";
 type Mode = "image" | "video";
@@ -103,12 +104,25 @@ export default function MediaPanel() {
     const kindGuess: Mode = editKind === "edit-image" ? "image" : "video";
     setOutputKind(kindGuess);
     try {
-      const formData = new FormData();
-      for (const f of files) formData.append("file", f);
-      formData.append("kind", editKind);
-      formData.append("instructions", instructions);
-      formData.append("contentType", editContentType);
-      const res = await fetch("/api/edit", { method: "POST", body: formData });
+      setResult({
+        status: "pending",
+        message:
+          files.length > 1
+            ? "Uploading photos..."
+            : "Uploading photo...",
+      });
+      const imageUrls = await Promise.all(files.map(uploadScratchFileFromBrowser));
+
+      const res = await fetch("/api/edit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          kind: editKind,
+          instructions,
+          contentType: editContentType,
+          imageUrls,
+        }),
+      });
       const data = await res.json();
       if (data.status === "pending" && data.taskId) {
         const mediaKind: Mode = data.mediaKind ?? kindGuess;
