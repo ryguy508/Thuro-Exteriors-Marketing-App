@@ -62,24 +62,37 @@ export default function MediaPanel() {
       : "Generating image...";
   }
 
+  function networkErrorResult(err: unknown): MediaResult {
+    const detail = err instanceof Error ? err.message : String(err);
+    return {
+      status: "provider_error",
+      message: `Lost connection to the server before a result came back (${detail}). Check your connection and try again.`,
+    };
+  }
+
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setResult(null);
     setOutputKind(mode);
-    const res = await fetch("/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode, prompt, contentType }),
-    });
-    const data = await res.json();
-    if (data.status === "pending" && data.taskId) {
-      setResult({ status: "pending", message: pendingMessage(data.mediaKind ?? mode) });
-      setResult(await pollUntilDone(data.taskId, data.mediaKind ?? mode));
-    } else {
-      setResult(data);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, prompt, contentType }),
+      });
+      const data = await res.json();
+      if (data.status === "pending" && data.taskId) {
+        setResult({ status: "pending", message: pendingMessage(data.mediaKind ?? mode) });
+        setResult(await pollUntilDone(data.taskId, data.mediaKind ?? mode));
+      } else {
+        setResult(data);
+      }
+    } catch (err) {
+      setResult(networkErrorResult(err));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   async function handleEdit(e: React.FormEvent) {
@@ -89,22 +102,27 @@ export default function MediaPanel() {
     setResult(null);
     const kindGuess: Mode = editKind === "edit-image" ? "image" : "video";
     setOutputKind(kindGuess);
-    const formData = new FormData();
-    for (const f of files) formData.append("file", f);
-    formData.append("kind", editKind);
-    formData.append("instructions", instructions);
-    formData.append("contentType", editContentType);
-    const res = await fetch("/api/edit", { method: "POST", body: formData });
-    const data = await res.json();
-    if (data.status === "pending" && data.taskId) {
-      const mediaKind: Mode = data.mediaKind ?? kindGuess;
-      setOutputKind(mediaKind);
-      setResult({ status: "pending", message: pendingMessage(mediaKind) });
-      setResult(await pollUntilDone(data.taskId, mediaKind));
-    } else {
-      setResult(data);
+    try {
+      const formData = new FormData();
+      for (const f of files) formData.append("file", f);
+      formData.append("kind", editKind);
+      formData.append("instructions", instructions);
+      formData.append("contentType", editContentType);
+      const res = await fetch("/api/edit", { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.status === "pending" && data.taskId) {
+        const mediaKind: Mode = data.mediaKind ?? kindGuess;
+        setOutputKind(mediaKind);
+        setResult({ status: "pending", message: pendingMessage(mediaKind) });
+        setResult(await pollUntilDone(data.taskId, mediaKind));
+      } else {
+        setResult(data);
+      }
+    } catch (err) {
+      setResult(networkErrorResult(err));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   function addFiles(newFiles: FileList | null) {
